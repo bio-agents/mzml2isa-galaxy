@@ -1,0 +1,147 @@
+<agent id="mzml2isa" name="mzml2isa" version="1.1.1+galaxy1">
+    <description>Parser to get meta information from mzML files and create an ISA-Tab structure</description>
+    <requirements>
+        <requirement type="package">zip</requirement>
+        <requirement type="package" version="1.1.1">mzml2isa</requirement>
+    </requirements>
+    <stdio>
+        <exit_code range="1:" />
+    </stdio>
+    <command detect_errors="exit_code">
+    <![CDATA[
+
+    #if $input.format == "data_collection"
+        mkdir "temp"
+        &&
+        cd "temp"
+        &&
+        #for $fn in $input.source
+            #if str( $fn ).endswith(".dat")
+                ln -s '$fn' '$fn.name'
+                &&
+            #end if
+        #end for
+        cd ..
+        &&
+    #end if
+
+    #if $metadata
+        ln -s '$metadata' 'metadata.json' &&
+    #end if
+
+    mzml2isa -s $name_of_study -o . -i
+
+    #if $input.format == "zip_file"
+         "zip://$input.source"
+    #else if $input.format == "tar_file"
+         "tar://$input.source"
+    #else if $input.format == "data_collection"
+         "temp"
+    #end if
+
+     #if $metadata
+        -m "metadata.json"
+     #end if
+
+	 && zip isa.zip i_* a_* s_* && mv isa.zip "$ISA_zip";
+    ]]>
+    </command>
+    <inputs>
+        <param name="name_of_study" type="text" label="Name study" help="This should not contain any spaces as the name will be used a prefix for ISA-tab file names" />
+        <conditional name="input">
+            <param name="format" type="select" label="Choose the source for the dataset (zip, tar or data collection)" >
+                <option value="zip_file" selected="true">Zip file from your History containing a folder of *.mzML files</option>
+                <option value="tar_file">TAR file from your history containing a folder of *.mzML files</option>
+                <option value="data_collection">Data collection (*.mzML files)</option>
+            </param>
+            <when value="zip_file">
+                <param name="source" type="data" format="zip" label="Zip file from your History containing *.mzml files">
+                </param>
+            </when>
+            <when value="tar_file">
+		<param name="source" type="data" format="tar" label="TAR file from your History containing *.mzml files"/>
+	    </when>
+            <when value="data_collection">
+                <param name="source" type="data_collection" format="mzml" label="Data collection of *.mzml" >
+                </param>
+            </when>
+        </conditional>
+        <param optional="true" format="json" name="metadata" type="data" label="Additional user Metadata in json"  help="A user can add additional metadata directory through a json file"/>
+    </inputs>
+    <outputs>
+        <data name="ISA_zip" format="zip" label="ISA Zip file"/>
+        <collection type="list" label="Assay files" name="a_files">
+            <discover_datasets pattern="(?P&lt;designation&gt;a_.+)\.txt" directory="."  format="tabular"/>
+	    </collection>
+	    <collection type="list" label="Study files" name="s_files">
+		    <discover_datasets pattern="(?P&lt;designation&gt;s_.+)\.txt" directory="." format="tabular"/>
+	    </collection>
+	    <data name="i_file" format="tabular" label="Investigation file" from_work_dir="i_Investigation.txt"/>
+    </outputs>
+    <tests>
+        <test>
+            <param name="name_of_study" value="test" />
+            <param name="input|format" value="zip_file" />
+            <param name="input|source" value="metabolomics_study.zip" ftype="zip" />
+            <output name="i_file" value="i_Investigation.txt" />
+            <output_collection name="a_files" type="list" count="1">
+                <element name="a_test_metabolite_profiling_mass_spectrometry">
+                    <assert_contents>
+                        <has_n_columns n="80" />
+                    </assert_contents>
+                </element>
+            </output_collection>
+            <output_collection name="s_files" type="list" count="1">
+                <element name="s_test">
+                    <assert_contents>
+                        <has_n_columns n="12" />
+                    </assert_contents>
+                </element>
+            </output_collection>
+        </test>
+        <test>
+            <param name="name_of_study" value="test" />
+            <param name="input|format" value="data_collection" />
+            <param name="input|source" >
+                <collection type="list">
+                    <element name="1_samp" value="1_samp.mzML" />
+                    <element name="2_samp" value="2_samp.mzML" />
+                    <element name="3_samp" value="3_samp.mzML" />
+                    <element name="4_samp" value="4_samp.mzML" />
+                    <element name="5_samp" value="5_samp.mzML" />
+                    <element name="6_samp" value="6_samp.mzML" />
+                </collection>
+            </param >
+            <output name="i_file" value="i_Investigation.txt" />
+            <output_collection name="a_files" type="list" count="1">
+                <element name="a_test_metabolite_profiling_mass_spectrometry">
+                    <assert_contents>
+                        <has_n_columns n="80" />
+                    </assert_contents>
+                </element>
+            </output_collection>
+            <output_collection name="s_files" type="list" count="1">
+                <element name="s_test">
+                    <assert_contents>
+                        <has_n_columns n="12" />
+                    </assert_contents>
+                </element>
+            </output_collection>
+        </test>
+    </tests>
+    <help><![CDATA[
+**Overview**
+ A program to automatically generate ISA-Tab metadata files from metabolomics raw XML (mzML and imzML) data files.
+
+ Additional meta-information not found within the mzML file can be added through a JSON file.
+ However, it is recommended that the mzML2ISA agent is used to create a semi-completed ISA-Tab file structure
+ that is further annotated using ISAcreator https://github.com/ISA-agents/ISAcreator or via the ISA-API.
+
+.. image::mzml2isa.png
+    ]]></help>
+    <citations>
+        <citation type="doi">10.1002/0471250953.bi1413s53</citation>
+        <citation type="doi">10.1007/s11306-015-0879-3</citation>
+        <citation type="doi">10.1038/ng.1054</citation>
+    </citations>
+</agent>
